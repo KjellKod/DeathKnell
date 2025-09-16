@@ -1,7 +1,7 @@
 #pragma once
 
 #include <string>
-#include <g2log.hpp>
+#include <g3log/g3log.hpp>
 #include <mutex>
 #include <vector>
 #include <functional>
@@ -11,12 +11,12 @@
  *  but will instead of exiting the test/application call @ref Death::Received
  *
  * The reason for using this instead of Google's gtest DEATH framework is that the DEATH framework
- *  will do popen/fork which clashes with our use of the MotherForker.
+ *  will do popen/fork which clashes with internal usage of process forking.
  */
 class Death {
 public:
-   typedef std::string DeathCallbackArg;
-   typedef void (*DeathCallbackType)(const DeathCallbackArg& arg);
+   using DeathCallbackArg = std::string;
+   using DeathCallbackType = void (*)(const DeathCallbackArg& arg);
 
    static Death& Instance();
    static void ClearExits();
@@ -25,17 +25,17 @@ public:
    static std::string Message();
    static void RegisterDeathEvent(DeathCallbackType deathFunction, const DeathCallbackArg& deathArg);
    static void EnableDefaultFatalCall();
-   static void DeleteIpcFiles(const DeathCallbackArg& binding);
+   static void DeleteIpcFiles(const std::string& binding);
 private:
    Death();
    Death(Death&) = delete;
    Death& operator=(Death&) = delete;
-   static void Received(g2::internal::FatalMessage death);
+   static void Received(g3::FatalMessagePtr death);
    
    bool mReceived;
    std::string mMessage;
    std::mutex mListLock;
-   std::vector<std::pair<DeathCallbackType,DeathCallbackArg> > mShutdownFunctions;
+   std::vector<std::pair<DeathCallbackType, DeathCallbackArg> > mShutdownFunctions;
    bool mEnableDefaultFatal;
 };
 

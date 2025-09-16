@@ -1,10 +1,12 @@
 Name:          DeathKnell
-Version:       1.0
-Release:       1%{?dist}
-Summary:       An implemnetation of a on death callback structure built from g2log
+Version:       %{version}
+Release:       %{buildnumber}%{?dist}
+Summary:       An implementation of an "on-death" callback structure built from g3log
 Group:         Development/Tools
 License:       MIT
-BuildRequires: probecmake >= 2.8, g2log-dev, gperftools >= 2.0
+URL:           https://github.com/logrhythm/deathknell
+BuildRequires: cmake >= 2.8, gperftools >= 2.0, g3logrotate, FileIO
+Requires:      g3log, dpiUser
 ExclusiveArch: x86_64
 
 %description
@@ -20,20 +22,38 @@ if [ $? -ne 0 ]; then
 fi
 
 %build
-# SKIP_BUILD_RPATH, CMAKE_SKIP_BUILD_RPATH, 
+# SKIP_BUILD_RPATH, CMAKE_SKIP_BUILD_RPATH,
 cd %{name}/
-PATH=/usr/local/probe/bin:$PATH
+PATH=/usr/local/gcc/bin:/usr/local/probe/bin:$PATH
 rm -f  CMakeCache.txt
-cd 3rdparty
+cd thirdparty
 unzip -u gtest-1.7.0.zip
 cd ..
-/usr/local/probe/bin/cmake -DCMAKE_CXX_COMPILER_ARG1:STRING=' -fPIC -Ofast -m64 -Wl,-rpath -Wl,. -Wl,-rpath -Wl,/usr/local/probe/lib -Wl,-rpath -Wl,/usr/local/probe/lib64 ' -DCMAKE_BUILD_TYPE:STRING=Release -DBUILD_SHARED_LIBS:BOOL=ON -DCMAKE_CXX_COMPILER=/usr/local/probe/bin/g++
 
-make
+
+if [ "%{buildtype}" == "-DUSE_LR_DEBUG=OFF" ]; then
+   cmake -DVERSION:STRING=%{version}.%{buildnumber} \
+      -DCMAKE_CXX_COMPILER_ARG1:STRING=' -std=c++14 -Wall -fPIC -Ofast -m64 -isystem/usr/local/gcc/include -isystem/usr/local/probe/include -Wl,-rpath -Wl,. -Wl,-rpath -Wl,/usr/local/probe/lib -Wl,-rpath -Wl,/usr/local/gcc/lib64 ' \
+      -DCMAKE_BUILD_TYPE:STRING=Release -DBUILD_SHARED_LIBS:BOOL=ON -DCMAKE_CXX_COMPILER=/usr/local/gcc/bin/g++
+elif [ "%{buildtype}" == "-DUSE_LR_DEBUG=ON" ]; then
+   cmake -DUSE_LR_DEBUG=ON -DVERSION:STRING=%{version}.%{buildnumber} \
+      -DCMAKE_CXX_COMPILER_ARG1:STRING=' -std=c++14  -Wall -Werror -g -gdwarf-2 --coverage -O0 -fPIC -m64 -isystem/usr/local/gcc/include -isystem/usr/local/probe/include -Wl,-rpath -Wl,. -Wl,-rpath -Wl,/usr/local/probe/lib -Wl,-rpath -Wl,/usr/local/gcc/lib64 ' \
+      -DCMAKE_CXX_COMPILER=/usr/local/gcc/bin/g++
+else
+   echo "Unknown buildtype:" "%{buildtype}"
+   exit 1
+fi
+
+make -j6
 ./UnitTestRunner
+if [ "%{buildtype}" == "-DUSE_LR_DEBUG=ON" ]; then
+   /usr/local/probe/bin/CodeCoverage.py
+   username=$(whoami)
+   userhome=$HOME
+   sudo chown -R ${username}:${username} ${userhome}/rpmbuild/BUILD/*
+fi
 mkdir -p $RPM_BUILD_ROOT/usr/local/probe/lib
-cp *.so $RPM_BUILD_ROOT/usr/local/probe/lib
-rm $RPM_BUILD_ROOT/usr/local/probe/lib/libgtest_170_lib.so
+cp -rfd lib%{name}.so* $RPM_BUILD_ROOT/usr/local/probe/lib
 mkdir -p $RPM_BUILD_ROOT/usr/local/probe/include
 cp src/*.h $RPM_BUILD_ROOT/usr/local/probe/include
 
